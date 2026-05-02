@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Binance P2P Merchant Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg0:#090b10;--bg1:#0f1119;--bg2:#161923;--bg3:#1c2030;--bg-input:#1e2235;
+      --border:rgba(255,255,255,.06);
+      --text:#e8eaed;--text2:#8b8fa3;--text3:#555a6e;
+      --gold:#f0b90b;--gold-d:#c99a09;--gold-glow:rgba(240,185,11,.22);
+      --green:#0ecb81;--red:#f6465d;--blue:#1e90ff;--purple:#a78bfa;
+      --r:10px;--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+    }
+    html,body{height:100%;overflow:hidden;font-size:14px}
+    body{font-family:var(--font);background:var(--bg0);color:var(--text);display:flex;flex-direction:column}
+
+    /* ── Header ─── */
+    .hdr{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0;height:50px}
+    .hdr .logo{width:30px;height:30px;background:var(--gold);border-radius:6px;display:grid;place-items:center;font-weight:700;font-size:15px;color:#000}
+    .hdr h1{font-size:.95rem;font-weight:600} .hdr h1 b{color:var(--gold)}
+    .hdr-stats{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:.7rem;font-family:var(--mono)}
+    .pill{padding:4px 10px;font-size:.65rem;font-weight:600;border-radius:99px;text-transform:uppercase;letter-spacing:.05em}
+    .pill-off{background:rgba(246,70,93,.12);color:var(--red)}
+    .pill-on{background:rgba(14,203,129,.12);color:var(--green)}
+    .pill-load{background:rgba(240,185,11,.12);color:var(--gold);animation:pulse 1.6s ease-in-out infinite}
+
+    /* ── 3-col layout: fills remaining height ─── */
+    .shell{flex:1;display:grid;grid-template-columns:280px 1fr 260px;min-height:0}
+
+    /* ── Orders sidebar ─── */
+    .orders{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+    .orders .top{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .orders .top h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:600}
+    .orders .top .cnt{margin-left:auto;background:var(--bg3);color:var(--gold);font-size:.65rem;font-weight:600;padding:2px 8px;border-radius:99px}
+    .olist{flex:1;overflow-y:auto;padding:6px;min-height:0}
+    .olist::-webkit-scrollbar{width:4px} .olist::-webkit-scrollbar-thumb{background:var(--text3);border-radius:4px}
+    .ocard{padding:10px 12px;border-radius:8px;cursor:pointer;transition:.15s;border:1px solid transparent;position:relative;margin-bottom:3px}
+    .ocard:hover{background:var(--bg2)}
+    .ocard.active{background:var(--bg3);border-color:var(--gold)}
+    .ocard .row{display:flex;justify-content:space-between;align-items:center}
+    .ocard .asset{font-weight:600;font-size:.85rem}
+    .ocard .price{font-family:var(--mono);font-size:.78rem;color:var(--green)}
+    .ocard .sub{font-size:.66rem;color:var(--text3);margin-top:3px;font-family:var(--mono)}
+    .ocard .badge-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--gold);display:none;animation:pulse 1s infinite}
+    .ocard .badge-dot.show{display:block}
+    .ocard .sc{display:inline-block;font-size:.58rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+    .sc-4,.sc-5{background:rgba(14,203,129,.1);color:var(--green)}
+    .sc-1,.sc-2,.sc-3{background:rgba(240,185,11,.1);color:var(--gold)}
+    .sc-6,.sc-7,.sc-8{background:rgba(246,70,93,.1);color:var(--red)}
+    .actions{padding:8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;font-size:.78rem;font-weight:600;border:none;border-radius:7px;cursor:pointer;transition:.2s;font-family:var(--font)}
+    .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000}
+    .btn-gold:hover{box-shadow:0 0 20px var(--gold-glow)}
+    .btn-gold:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+    .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2);font-size:.72rem;padding:7px 10px}
+    .btn-red{background:rgba(246,70,93,.1);color:var(--red);font-size:.72rem;padding:7px 10px}
+
+    /* ── Chat panel ─── */
+    .chat{display:flex;flex-direction:column;background:var(--bg0);min-height:0}
+    .chat-hdr{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;height:42px}
+    .chat-hdr h3{font-size:.88rem;font-weight:600}
+    .chat-hdr .tag{font-family:var(--mono);font-size:.72rem;background:var(--bg3);padding:3px 9px;border-radius:6px;color:var(--gold);border:1px solid rgba(240,185,11,.12)}
+    .chat-hdr .auto-tag{font-size:.62rem;padding:3px 7px;border-radius:4px;background:rgba(167,139,250,.1);color:var(--purple);font-weight:600;margin-left:auto}
+    .msgs{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:6px;min-height:0}
+    .msgs::-webkit-scrollbar{width:4px} .msgs::-webkit-scrollbar-thumb{background:var(--text3);border-radius:4px}
+    .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text3)}
+    .empty .ico{font-size:2.4rem;opacity:.25} .empty p{font-size:.82rem}
+    .bubble{max-width:72%;padding:10px 14px;border-radius:var(--r);font-size:.82rem;line-height:1.5;animation:fadeIn .25s ease;word-break:break-word}
+    .bubble-self{align-self:flex-end;background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000;border-bottom-right-radius:3px}
+    .bubble-other{align-self:flex-start;background:var(--bg2);border:1px solid var(--border);border-bottom-left-radius:3px}
+    .bubble-sys{align-self:center;max-width:85%;background:rgba(30,144,255,.07);border:1px solid rgba(30,144,255,.12);color:var(--blue);font-size:.72rem;font-family:var(--mono);text-align:center;border-radius:6px}
+    .bubble-auto{align-self:flex-end;background:linear-gradient(135deg,var(--purple),#7c3aed);color:#fff;border-bottom-right-radius:3px}
+    .bubble .ts{display:block;font-size:.58rem;margin-top:4px;opacity:.55}
+    .bubble-self .ts{color:#000}
+    .loading-chat{text-align:center;padding:20px;color:var(--text3);font-size:.78rem}
+
+    /* ── Composer — ALWAYS visible ─── */
+    .composer{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;height:52px}
+    .composer input{flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;padding:0 14px;font-size:.82rem;color:var(--text);font-family:var(--font);outline:none;transition:.2s}
+    .composer input:focus{border-color:var(--gold)} .composer input::placeholder{color:var(--text3)}
+    .composer input:disabled{opacity:.4}
+    .composer button{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000;padding:0 18px;font-weight:600;border:none;border-radius:7px;cursor:pointer;font-family:var(--font);font-size:.8rem;transition:.2s}
+    .composer button:hover{box-shadow:0 0 16px var(--gold-glow)}
+    .composer button:disabled{opacity:.3;cursor:not-allowed;box-shadow:none}
+
+    /* ── Event log ─── */
+    .logpanel{background:var(--bg1);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+    .logpanel .top{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .logpanel .top h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:600}
+    .logbody{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:3px;min-height:0}
+    .logbody::-webkit-scrollbar{width:3px} .logbody::-webkit-scrollbar-thumb{background:var(--text3);border-radius:3px}
+    .lentry{font-size:.62rem;font-family:var(--mono);padding:5px 7px;border-radius:5px;background:var(--bg2);border-left:3px solid var(--text3);color:var(--text2);line-height:1.4;animation:fadeIn .2s ease}
+    .lentry-err{border-left-color:var(--red);color:var(--red)}
+    .lentry-ok{border-left-color:var(--green);color:var(--green)}
+    .lentry-info{border-left-color:var(--blue);color:var(--blue)}
+
+    @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    @media(max-width:960px){.shell{grid-template-columns:1fr}.orders,.logpanel{display:none}}
+  </style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">B</div>
+  <h1><b>P2P</b> Merchant Dashboard</h1>
+  <div class="hdr-stats" id="hdr-stats" style="display:none">
+    <span style="color:var(--gold)">💬 Unread: <b id="stat-unread">—</b></span>
+    <span style="color:var(--green)">🟢 Ongoing: <b id="stat-ongoing">—</b></span>
+  </div>
+  <span class="pill pill-off" id="pill">Offline</span>
+</header>
+
+<div class="shell">
+  <!-- Left: Orders -->
+  <aside class="orders">
+    <div class="top"><h2>Active Orders</h2><span class="cnt" id="order-count">0</span></div>
+    <div class="olist" id="order-list"></div>
+    <div class="actions">
+      <button class="btn btn-gold" id="connect-btn">⚡ Connect & Fetch</button>
+      <button class="btn btn-red" id="disconnect-btn" style="display:none">✕ Disconnect</button>
+      <button class="btn btn-outline" id="refresh-btn" style="display:none">↻ Refresh</button>
+    </div>
+  </aside>
+
+  <!-- Center: Chat -->
+  <section class="chat">
+    <div class="chat-hdr">
+      <h3>Chat</h3>
+      <span class="tag" id="active-tag">Select an order</span>
+      <span class="auto-tag">Auto-Reply Active</span>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="empty" id="empty-state">
+        <div class="ico">💬</div>
+        <p>Select an order from the sidebar to view messages.</p>
+      </div>
+    </div>
+    <div class="composer">
+      <input type="text" id="msg-input" placeholder="Type a message…" disabled autocomplete="off"/>
+      <button id="send-btn" disabled>Send</button>
+    </div>
+  </section>
+
+  <!-- Right: Log -->
+  <aside class="logpanel">
+    <div class="top"><h2>Event Log</h2></div>
+    <div class="logbody" id="log"></div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const pill = document.getElementById('pill');
+  const orderList = document.getElementById('order-list');
+  const orderCount = document.getElementById('order-count');
+  const connectBtn = document.getElementById('connect-btn');
+  const disconnectBtn = document.getElementById('disconnect-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const activeTag = document.getElementById('active-tag');
+  const msgsEl = document.getElementById('msgs');
+  const msgInput = document.getElementById('msg-input');
+  const sendBtn = document.getElementById('send-btn');
+  const logEl = document.getElementById('log');
+
+  let connected = false;
+  let selectedOrder = null;
+  const chatHistory = {};
+  const unreadOrders = new Set();
+  let cachedOrders = [];
+
+  const socket = io();
+
+  const ts = () => new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const shortTs = (t) => t ? new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+
+  function log(msg, type='') {
+    const d = document.createElement('div');
+    d.className = 'lentry' + (type ? ' lentry-'+type : '');
+    d.textContent = `[${ts()}] ${msg}`;
+    logEl.prepend(d);
+    while (logEl.children.length > 100) logEl.removeChild(logEl.lastChild);
+  }
+
+  function setPill(s) {
+    pill.className = 'pill';
+    if (s==='on')   { pill.classList.add('pill-on');   pill.textContent='Connected'; }
+    if (s==='off')  { pill.classList.add('pill-off');  pill.textContent='Offline'; }
+    if (s==='load') { pill.classList.add('pill-load'); pill.textContent='Connecting…'; }
+  }
+
+  function setConnected(v) {
+    connected = v;
+    msgInput.disabled = !v || !selectedOrder;
+    sendBtn.disabled = !v || !selectedOrder;
+    connectBtn.style.display = v ? 'none' : '';
+    disconnectBtn.style.display = v ? '' : 'none';
+    refreshBtn.style.display = v ? '' : 'none';
+    setPill(v ? 'on' : 'off');
+  }
+
+  const statusMap = {
+    1:'PENDING',2:'PAID',3:'IN APPEAL',4:'COMPLETED',5:'COMPLETED',
+    6:'CANCELLED',7:'CANCELLED',8:'CANCELLED_BY_SYSTEM'
+  };
+
+  function renderOrders(orders) {
+    orderList.innerHTML = '';
+    if (!orders || !orders.length) {
+      orderList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:.78rem">No orders found.</div>';
+      orderCount.textContent = '0';
+      return;
+    }
+    orderCount.textContent = orders.length;
+
+    orders.forEach(o => {
+      const no = o.orderNumber || o.orderNo || o.advNo || '';
+      const asset = o.asset || o.cryptoCurrency || '—';
+      const fiat = o.fiat || o.fiatUnit || '';
+      const price = o.unitPrice || o.price || '—';
+      const amt = o.amount || o.totalPrice || '';
+      const st = o.orderStatus || o.status || 0;
+
+      const card = document.createElement('div');
+      card.className = 'ocard' + (selectedOrder === no ? ' active' : '');
+      card.dataset.order = no;
+      card.innerHTML = `
+        <div class="badge-dot ${unreadOrders.has(no)?'show':''}"></div>
+        <div class="row"><span class="asset">${asset}</span><span class="price">${price} ${fiat}</span></div>
+        <div class="sub">#${no}</div>
+        ${amt ? `<div class="sub">Total: ${amt} ${fiat}</div>` : ''}
+        <span class="sc sc-${st}">${statusMap[st]||'STATUS '+st}</span>
+      `;
+      card.addEventListener('click', () => selectOrder(no));
+      orderList.appendChild(card);
+    });
+  }
+
+  // ── Select order + fetch chat history ──────
+  async function selectOrder(orderNo) {
+    selectedOrder = orderNo;
+    unreadOrders.delete(orderNo);
+    activeTag.textContent = '# ' + orderNo;
+    msgInput.disabled = !connected;
+    sendBtn.disabled = !connected;
+
+    document.querySelectorAll('.ocard').forEach(c => {
+      c.classList.toggle('active', c.dataset.order === orderNo);
+      if (c.dataset.order === orderNo) {
+        const dot = c.querySelector('.badge-dot');
+        if (dot) dot.classList.remove('show');
+      }
+    });
+
+    // If we already have messages cached, render them
+    if (chatHistory[orderNo] && chatHistory[orderNo].length > 0) {
+      renderChat();
+      return;
+    }
+
+    // Otherwise, fetch chat history from the backend
+    msgsEl.innerHTML = '<div class="loading-chat">Loading chat history…</div>';
+    try {
+      const res = await fetch(`/api/chat/${orderNo}`);
+      const json = await res.json();
+      if (json.success && json.messages && json.messages.length > 0) {
+        // Binance returns newest-first — reverse for chronological chat order
+        chatHistory[orderNo] = json.messages.reverse();
+        log(`Loaded ${json.messages.length} messages for #${orderNo.slice(-6)}`, 'ok');
+      } else {
+        if (!chatHistory[orderNo]) chatHistory[orderNo] = [];
+        if (json.error) log(`Chat history: ${json.error}`, 'err');
+      }
+    } catch (e) {
+      log('Failed to load chat: ' + e.message, 'err');
+      if (!chatHistory[orderNo]) chatHistory[orderNo] = [];
+    }
+    renderChat();
+  }
+
+  function renderChat() {
+    msgsEl.innerHTML = '';
+    const history = chatHistory[selectedOrder] || [];
+    if (!selectedOrder || !history.length) {
+      msgsEl.innerHTML = `<div class="empty"><div class="ico">💬</div><p>${selectedOrder ? 'No messages yet.' : 'Select an order.'}</p></div>`;
+      return;
+    }
+    history.forEach(m => appendBubble(m, false));
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  function appendBubble(m, scroll=true) {
+    const es = msgsEl.querySelector('.empty');
+    if (es) es.remove();
+    const lc = msgsEl.querySelector('.loading-chat');
+    if (lc) lc.remove();
+
+    const d = document.createElement('div');
+    const isSelf = m.self === true || m._echoed === true;
+    const isOurBot = m._autoReply === true;
+    const isBinanceAutoReply = m.type === 'auto_reply';
+    const isSys = m.type === 'system';
+
+    if (isSys) {
+      // ── Parse system message JSON into human-readable text ─────
+      d.className = 'bubble bubble-sys';
+      let text = m.content || '';
+      try {
+        const j = JSON.parse(text);
+        if (j.type === 'seller_payed' || j.type === 'buyer_payed') {
+          text = `💸 ${j.realName || j.nickName || 'Counterparty'} marked as paid`;
+        } else if (j.type === 'seller_merchant_trading') {
+          text = '🏪 Merchant trade started';
+        } else if (j.type === 'risk_alert') {
+          text = `⚠️ ${j.alertTitle || 'Alert'}: ${j.alertContent || ''}`;
+        } else if (j.type === 'order_created') {
+          text = `📋 Order created${j.symbol ? ' for ' + j.symbol : ''}`;
+        } else if (j.type === 'order_completed') {
+          text = '✅ Order completed';
+        } else if (j.type === 'order_cancelled') {
+          text = '❌ Order cancelled';
+        } else if (j.type === 'crypto_released') {
+          text = '🔓 Crypto released';
+        } else if (j.symbol) {
+          text = `📋 Order: ${j.symbol}`;
+        } else if (j.nickName || j.realName) {
+          text = `👤 ${j.realName || j.nickName}${j.type ? ' — ' + j.type.replace(/_/g,' ') : ''}`;
+        } else {
+          // Fallback: show key info from JSON
+          text = Object.entries(j).map(([k,v]) => `${k}: ${v}`).join(' · ');
+        }
+      } catch { /* not JSON, use raw text */ }
+      d.textContent = text;
+      const ts2 = document.createElement('span');
+      ts2.className = 'ts';
+      ts2.textContent = 'System · ' + shortTs(m.createTime);
+      d.appendChild(ts2);
+    } else if (isBinanceAutoReply) {
+      // ── Binance's built-in auto-reply (from merchant settings) ──
+      d.className = 'bubble bubble-self';
+      d.style.borderLeft = '3px solid var(--purple)';
+      const txt = document.createTextNode(m.content || '');
+      d.appendChild(txt);
+      const sp = document.createElement('span');
+      sp.className = 'ts';
+      sp.textContent = '🤖 Binance Auto-Reply · ' + shortTs(m.createTime);
+      d.appendChild(sp);
+    } else {
+      // ── Normal chat message ─────────────────────────────────────
+      const cls = isOurBot ? 'bubble-auto' : isSelf ? 'bubble-self' : 'bubble-other';
+      d.className = 'bubble ' + cls;
+      const txt = document.createTextNode(m.content || m.raw || JSON.stringify(m));
+      d.appendChild(txt);
+      const sp = document.createElement('span');
+      sp.className = 'ts';
+      sp.textContent = (isOurBot ? '🤖 Our Bot' : isSelf ? 'You' : 'Peer') + ' · ' + shortTs(m.createTime || Date.now());
+      d.appendChild(sp);
+    }
+
+    msgsEl.appendChild(d);
+    if (scroll) msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  async function fetchOrders() {
+    try {
+      log('Fetching orders…', 'info');
+      const res = await fetch('/api/orders');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Unknown error');
+      cachedOrders = json.orders || [];
+      renderOrders(cachedOrders);
+      log(`Loaded ${cachedOrders.length} orders.`, 'ok');
+      if (json.errors && json.errors.length > 0) {
+        json.errors.forEach(e => log('⚠ ' + e, 'err'));
+      }
+    } catch (e) {
+      log('Order fetch failed: ' + e.message, 'err');
+    }
+  }
+
+  connectBtn.addEventListener('click', async () => {
+    setPill('load');
+    connectBtn.disabled = true;
+    log('Connecting…', 'info');
+    await fetchOrders();
+    socket.emit('connect-chat', {});
+  });
+
+  disconnectBtn.addEventListener('click', () => {
+    socket.disconnect();
+    socket.connect();
+    setConnected(false);
+    log('Disconnected.', '');
+  });
+
+  refreshBtn.addEventListener('click', fetchOrders);
+
+  function sendMsg() {
+    const txt = msgInput.value.trim();
+    if (!txt || !connected || !selectedOrder) return;
+    socket.emit('send-message', { orderNo: selectedOrder, content: txt });
+    msgInput.value = '';
+    msgInput.focus();
+  }
+  sendBtn.addEventListener('click', sendMsg);
+  msgInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+
+  // ── Socket listeners ──────────
+  socket.on('status', data => {
+    const map = {error:'err',connected:'ok',info:'info',disconnected:''};
+    log(data.message, map[data.type]||'');
+    if (data.type === 'connected') { setConnected(true); connectBtn.disabled = false; }
+    if (data.type === 'error') { connectBtn.disabled = false; if (!connected) setPill('off'); }
+    if (data.type === 'disconnected') setConnected(false);
+  });
+
+  socket.on('chat-message', data => {
+    const orderNo = data.orderNo || 'unknown';
+    if (!chatHistory[orderNo]) chatHistory[orderNo] = [];
+    chatHistory[orderNo].push(data);
+
+    if (orderNo === selectedOrder) {
+      appendBubble(data);
+    } else {
+      unreadOrders.add(orderNo);
+      const dot = document.querySelector(`.ocard[data-order="${orderNo}"] .badge-dot`);
+      if (dot) dot.classList.add('show');
+    }
+    log(`[${orderNo.slice(-6)}] ${data._autoReply?'🤖':'📩'} ${(data.content||'').slice(0,40)}`, 'ok');
+  });
+
+  socket.on('ws-stats', data => {
+    document.getElementById('hdr-stats').style.display = 'flex';
+    if (data.subType === 'unreadChatCount') {
+      document.getElementById('stat-unread').textContent = data.totalCount ?? '—';
+    }
+    if (data.subType === 'ongoingChatCount') {
+      document.getElementById('stat-ongoing').textContent = data.totalCount ?? '—';
+    }
+  });
+
+  socket.on('disconnect', () => {
+    setConnected(false);
+    log('Socket.io disconnected.', 'err');
+  });
+})();
+</script>
+</body>
+</html>
