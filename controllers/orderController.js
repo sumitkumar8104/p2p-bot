@@ -40,10 +40,18 @@ const getOrders = async (req, res) => {
     console.log(`✅ Received ${orders.length} orders.`);
     auditLog("ORDERS_RECEIVED", { count: orders.length });
 
-    res.json({ success: true, orders, errors });
+    res.json({ 
+      success: true, 
+      message: "Orders retrieved successfully", 
+      data: { orders, errors } 
+    });
   } catch (err) {
     console.error("❌ Failed to fetch orders:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ 
+      success: false, 
+      message: err.message, 
+      data: null 
+    });
   }
 };
 
@@ -62,12 +70,15 @@ const getUserAndPaymentDetails = async (req, res) => {
     const basic = getOrder(orderNo);
 
     if (!details && !basic) {
-      return res.status(404).json({ success: false, error: "Order not found" });
+      return res.status(404).json({ 
+        success: false, 
+        message: "Order not found", 
+        data: null 
+      });
     }
 
     // Combine data
-    const response = {
-      success: true,
+    const responseData = {
       orderNo,
       user: {
         nickName: details?.counterPartyNickName || details?.nickName || "Unknown",
@@ -77,10 +88,18 @@ const getUserAndPaymentDetails = async (req, res) => {
       basic: basic || {}
     };
 
-    res.json(response);
+    res.json({ 
+      success: true, 
+      message: "Order details retrieved successfully", 
+      data: responseData 
+    });
   } catch (err) {
     console.error("❌ Failed to fetch order details:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ 
+      success: false, 
+      message: err.message, 
+      data: null 
+    });
   }
 };
 

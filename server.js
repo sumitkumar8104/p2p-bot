@@ -3,14 +3,23 @@ const http = require("http");
 const { Server: SocketIOServer } = require("socket.io");
 const path = require("path");
 const binanceConfig = require("./config/binance");
+const { getDb, closeDb } = require("./config/database");
 const { initSocket } = require("./services/socketService");
 const orderRoutes = require("./routes/orderRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const templateRoutes = require("./routes/templateRoutes");
+const payoutRoutes = require("./routes/payoutRoutes");
+const { initMysql } = require("./config/mysql");
 const { auditLog } = require("./utils/logger");
 
 const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, { cors: { origin: "*" } });
+
+// ── Initialize Database ──
+getDb();
+initMysql();
 
 // ── Middleware ──
 app.use(express.json());
@@ -19,6 +28,9 @@ app.use(express.static(path.join(__dirname, "public")));
 // ── Routes ──
 app.use("/api/orders", orderRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/templates", templateRoutes);
+app.use("/api/payouts", payoutRoutes);
 
 // ── Socket Initialization ──
 initSocket(io);
@@ -27,8 +39,10 @@ initSocket(io);
 server.listen(binanceConfig.port, () => {
   auditLog("SERVER_STARTED", { port: binanceConfig.port });
   console.log(`
-  🚀 P2P Merchant Dashboard Refactored
-  🔗 http://localhost:${binanceConfig.port}
+  🚀 P2P Payment Verification Bot
+  🔗 Dashboard:  http://localhost:${binanceConfig.port}
+  🔧 Admin:      http://localhost:${binanceConfig.port}/admin.html
+  📊 API:        http://localhost:${binanceConfig.port}/api/admin/dashboard
   `);
 });
 
@@ -40,6 +54,9 @@ function gracefulShutdown(signal) {
   // Close all Binance WebSockets
   const { closeAllConnections } = require("./services/socketService");
   closeAllConnections();
+
+  // Close database
+  closeDb();
 
   server.close(() => {
     console.log("✅ Server closed.");

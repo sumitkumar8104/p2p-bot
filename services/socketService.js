@@ -1,6 +1,7 @@
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 const { getChatCredentials } = require("./binanceService");
+const { handleIncomingMessage } = require("./botEngine");
 const { auditLog } = require("../utils/logger");
 const { isDuplicate, canSendToOrder, canSendGlobally, sanitize } = require("./securityService");
 const binanceConfig = require("../config/binance");
@@ -8,7 +9,7 @@ const binanceConfig = require("../config/binance");
 let io;
 const binanceConnections = new Map();
 const sentUUIDs = new Set();
-const autoReplyCounts = new Map();
+const processedOrders = new Set(); // Track orders that have already triggered the bot
 
 // Reconnection state
 let reconnectAttempts = 0;
@@ -185,6 +186,10 @@ function humanDelay() {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Handle auto-reply using the Bot Engine state machine.
+ * Routes incoming peer messages through the verification flow.
+ */
 function handleAutoReply(ws, msg) {
   const { getOrder } = require("../utils/sharedCache");
   const orderData = getOrder(msg.orderNo);
@@ -192,44 +197,39 @@ function handleAutoReply(ws, msg) {
   const isCorrectOrderType = orderData && orderData.tradeType === 'BUY';
   const isPeerTextMessage = msg.self === false && (msg.type === "text" || msg.type === "TEXT");
   
-  const currentCount = autoReplyCounts.get(msg.orderNo) || 0;
-  
-  if (isCorrectOrderType && isPeerTextMessage && currentCount === 0) {
-    autoReplyCounts.set(msg.orderNo, 1); // Set to 1 to indicate Greeting sent
-    
-    if (!canSendToOrder(msg.orderNo) || !canSendGlobally()) return;
+  if (!isCorrectOrderType || !isPeerTextMessage) return;
 
-    console.log(`🤖 Step 1: Sending Greeting to order ${msg.orderNo}...`);
-    
-    humanDelay().then(async () => {
-      if (ws.readyState !== WebSocket.OPEN) return;
+  // Rate limiting
+  if (!canSendToOrder(msg.orderNo) || !canSendGlobally()) return;
 
-      // 1. Send Greeting
-      const res1 = sendViaWS(ws, msg.orderNo, binanceConfig.messages.greeting);
-      if (res1.success) {
-        io.emit("chat-message", {
-          type: "text",
-          orderNo: msg.orderNo,
-          content: binanceConfig.messages.greeting,
-          uuid: res1.id,
-          self: true,
-          createTime: Date.now(),
-          _autoReply: true,
-          _echoed: true,
-        });
+  console.log(`🤖 Bot processing message for order ${msg.orderNo}: "${(msg.content || "").slice(0, 30)}..."`);
 
-        // 2. Wait a bit more and send PAN request (Requirement: "Add PAN card last")
-        await humanDelay(); 
-        if (ws.readyState !== WebSocket.OPEN) return;
-        
-        console.log(`🤖 Step 2: Sending PAN Request to order ${msg.orderNo}...`);
-        const res2 = sendViaWS(ws, msg.orderNo, binanceConfig.messages.verification);
-        if (res2.success) {
+  // Process through bot engine asynchronously
+  humanDelay().then(async () => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    try {
+      const responses = await handleIncomingMessage(
+        msg.orderNo,
+        msg.content,
+        msg,
+        orderData
+      );
+
+      // Send each response with human-like delays
+      for (const response of responses) {
+        if (ws.readyState !== WebSocket.OPEN) break;
+        if (!canSendToOrder(msg.orderNo) || !canSendGlobally()) break;
+
+        await humanDelay();
+
+        const result = sendViaWS(ws, msg.orderNo, response);
+        if (result.success) {
           io.emit("chat-message", {
             type: "text",
             orderNo: msg.orderNo,
-            content: binanceConfig.messages.verification,
-            uuid: res2.id,
+            content: response,
+            uuid: result.id,
             self: true,
             createTime: Date.now(),
             _autoReply: true,
@@ -237,8 +237,11 @@ function handleAutoReply(ws, msg) {
           });
         }
       }
-    });
-  }
+    } catch (err) {
+      console.error(`❌ Bot engine error for ${msg.orderNo}:`, err.message);
+      auditLog("BOT_ENGINE_ERROR", { orderNo: msg.orderNo, error: err.message });
+    }
+  });
 }
 
 function closeAllConnections() {

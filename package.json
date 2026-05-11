@@ -1,7 +1,7 @@
 {
   "name": "p2p-backend",
-  "version": "1.0.0",
-  "description": "Binance P2P Merchant Chat — Real-time WebSocket relay",
+  "version": "2.0.0",
+  "description": "Binance P2P Payment Verification Chatbot — Automated KYC, PAN verification & payment processing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "axios": "^1.7.0",
-    "crypto": "^1.0.1",
+    "better-sqlite3": "^11.0.0",
     "dotenv": "^16.4.0",
     "express": "^4.21.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "mysql2": "^3.22.3",
     "socket.io": "^4.7.0",
     "uuid": "^9.0.0",
     "ws": "^8.17.0"

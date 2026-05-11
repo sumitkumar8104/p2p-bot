@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Binance P2P Merchant Dashboard</title>
+  <title>P2P Payment Verification Bot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -54,6 +54,17 @@
     .sc-4,.sc-5{background:rgba(14,203,129,.1);color:var(--green)}
     .sc-1,.sc-2,.sc-3{background:rgba(240,185,11,.1);color:var(--gold)}
     .sc-6,.sc-7,.sc-8{background:rgba(246,70,93,.1);color:var(--red)}
+    .bot-status{display:inline-block;font-size:.56rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-top:3px;margin-left:4px;letter-spacing:.03em}
+    .bot-created{background:rgba(255,255,255,.06);color:var(--text3)}
+    .bot-waiting{background:rgba(240,185,11,.1);color:var(--gold)}
+    .bot-verifying{background:rgba(30,144,255,.1);color:var(--blue)}
+    .bot-matched{background:rgba(14,203,129,.1);color:var(--green)}
+    .bot-payment{background:rgba(167,139,250,.1);color:var(--purple)}
+    .bot-success{background:rgba(14,203,129,.15);color:var(--green)}
+    .bot-failed{background:rgba(246,70,93,.1);color:var(--red)}
+    .bot-rejected{background:rgba(246,70,93,.15);color:var(--red)}
+    .admin-link{font-size:.72rem;color:var(--purple);text-decoration:none;padding:4px 10px;border:1px solid rgba(167,139,250,.2);border-radius:6px;transition:.2s}
+    .admin-link:hover{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.4)}
     .actions{padding:8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px}
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;font-size:.78rem;font-weight:600;border:none;border-radius:7px;cursor:pointer;transition:.2s;font-family:var(--font)}
     .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000}
@@ -110,11 +121,12 @@
 
 <header class="hdr">
   <div class="logo">B</div>
-  <h1><b>P2P</b> Merchant Dashboard</h1>
+  <h1><b>P2P</b> Verification Bot</h1>
   <div class="hdr-stats" id="hdr-stats" style="display:none">
     <span style="color:var(--gold)">💬 Unread: <b id="stat-unread">—</b></span>
     <span style="color:var(--green)">🟢 Ongoing: <b id="stat-ongoing">—</b></span>
   </div>
+  <a href="/admin.html" class="admin-link" target="_blank">📊 Admin</a>
   <span class="pill pill-off" id="pill">Offline</span>
 </header>
 
@@ -135,7 +147,8 @@
     <div class="chat-hdr">
       <h3>Chat</h3>
       <span class="tag" id="active-tag">Select an order</span>
-      <span class="auto-tag">Auto-Reply Active</span>
+      <span class="auto-tag">🤖 Bot Active</span>
+      <span class="bot-status bot-created" id="bot-state-tag" style="margin-left:8px">—</span>
     </div>
     <div class="msgs" id="msgs">
       <div class="empty" id="empty-state">
@@ -237,6 +250,7 @@
         <div class="sub">#${no}</div>
         ${amt ? `<div class="sub">Total: ${amt} ${fiat}</div>` : ''}
         <span class="sc sc-${st}">${statusMap[st]||'STATUS '+st}</span>
+        <span class="bot-status bot-created" data-bot-order="${no}"></span>
       `;
       card.addEventListener('click', () => selectOrder(no));
       orderList.appendChild(card);
@@ -248,6 +262,7 @@
     selectedOrder = orderNo;
     unreadOrders.delete(orderNo);
     activeTag.textContent = '# ' + orderNo;
+    fetchBotStatus(orderNo);
     msgInput.disabled = !connected;
     sendBtn.disabled = !connected;
 
@@ -270,13 +285,13 @@
     try {
       const res = await fetch(`/api/chat/${orderNo}`);
       const json = await res.json();
-      if (json.success && json.messages && json.messages.length > 0) {
+      if (json.success && json.data && json.data.length > 0) {
         // Binance returns newest-first — reverse for chronological chat order
-        chatHistory[orderNo] = json.messages.reverse();
-        log(`Loaded ${json.messages.length} messages for #${orderNo.slice(-6)}`, 'ok');
+        chatHistory[orderNo] = json.data.reverse();
+        log(`Loaded ${json.data.length} messages for #${orderNo.slice(-6)}`, 'ok');
       } else {
         if (!chatHistory[orderNo]) chatHistory[orderNo] = [];
-        if (json.error) log(`Chat history: ${json.error}`, 'err');
+        if (json.message && !json.success) log(`Chat history: ${json.message}`, 'err');
       }
     } catch (e) {
       log('Failed to load chat: ' + e.message, 'err');
@@ -373,12 +388,12 @@
       log('Fetching orders…', 'info');
       const res = await fetch('/api/orders');
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Unknown error');
-      cachedOrders = json.orders || [];
+      if (!json.success) throw new Error(json.message || 'Unknown error');
+      cachedOrders = json.data.orders || [];
       renderOrders(cachedOrders);
       log(`Loaded ${cachedOrders.length} orders.`, 'ok');
-      if (json.errors && json.errors.length > 0) {
-        json.errors.forEach(e => log('⚠ ' + e, 'err'));
+      if (json.data.errors && json.data.errors.length > 0) {
+        json.data.errors.forEach(e => log('⚠ ' + e, 'err'));
       }
     } catch (e) {
       log('Order fetch failed: ' + e.message, 'err');
@@ -434,6 +449,11 @@
       if (dot) dot.classList.add('show');
     }
     log(`[${orderNo.slice(-6)}] ${data._autoReply?'🤖':'📩'} ${(data.content||'').slice(0,40)}`, 'ok');
+
+    // Refresh bot status when bot sends a message
+    if (data._autoReply && data.orderNo === selectedOrder) {
+      setTimeout(() => fetchBotStatus(data.orderNo), 500);
+    }
   });
 
   socket.on('ws-stats', data => {
@@ -450,6 +470,49 @@
     setConnected(false);
     log('Socket.io disconnected.', 'err');
   });
+
+  // ── Bot Status Fetcher ──
+  const botStateMap = {
+    'CREATED': { cls: 'bot-created', label: 'New' },
+    'WAITING_FOR_PAN': { cls: 'bot-waiting', label: '⏳ Waiting PAN' },
+    'PAN_VALIDATING': { cls: 'bot-verifying', label: '🔄 Verifying PAN' },
+    'PAN_VERIFIED': { cls: 'bot-matched', label: '✅ PAN OK' },
+    'FETCHING_BENEFICIARY': { cls: 'bot-verifying', label: '🔄 Checking Bank' },
+    'NAME_MATCHING': { cls: 'bot-verifying', label: '🔄 Matching Name' },
+    'NAME_MATCHED': { cls: 'bot-matched', label: '✅ Name OK' },
+    'CHECKING_BALANCE': { cls: 'bot-payment', label: '🔄 Balance Check' },
+    'PAYMENT_PROCESSING': { cls: 'bot-payment', label: '💸 Paying…' },
+    'PAYMENT_SUCCESS': { cls: 'bot-success', label: '✅ Paid' },
+    'PAYMENT_FAILED': { cls: 'bot-failed', label: '❌ Pay Failed' },
+    'COMPLETED': { cls: 'bot-success', label: '🎉 Done' },
+    'REJECTED': { cls: 'bot-rejected', label: '🚫 Rejected' },
+    'EXPIRED': { cls: 'bot-failed', label: '⏰ Expired' },
+  };
+
+  async function fetchBotStatus(orderNo) {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderNo}`);
+      const json = await res.json();
+      if (json.success && json.data && json.data.order) {
+        const state = json.data.order.status || 'CREATED';
+        const info = botStateMap[state] || { cls: 'bot-created', label: state };
+
+        // Update header tag
+        const headerTag = document.getElementById('bot-state-tag');
+        if (headerTag) {
+          headerTag.className = 'bot-status ' + info.cls;
+          headerTag.textContent = info.label;
+        }
+
+        // Update order card badge
+        const cardBadge = document.querySelector(`[data-bot-order="${orderNo}"]`);
+        if (cardBadge) {
+          cardBadge.className = 'bot-status ' + info.cls;
+          cardBadge.textContent = info.label;
+        }
+      }
+    } catch { /* silent */ }
+  }
 })();
 </script>
 </body>

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>P2P Bot — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg0:#090b10;--bg1:#0f1119;--bg2:#161923;--bg3:#1c2030;
+      --border:rgba(255,255,255,.06);
+      --text:#e8eaed;--text2:#8b8fa3;--text3:#555a6e;
+      --gold:#f0b90b;--gold-d:#c99a09;--gold-glow:rgba(240,185,11,.22);
+      --green:#0ecb81;--red:#f6465d;--blue:#1e90ff;--purple:#a78bfa;
+      --r:10px;--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+    }
+    html,body{min-height:100%;font-size:14px}
+    body{font-family:var(--font);background:var(--bg0);color:var(--text);padding:0}
+
+    /* ── Header ── */
+    .hdr{display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--bg1);border-bottom:1px solid var(--border)}
+    .hdr .logo{width:32px;height:32px;background:var(--gold);border-radius:6px;display:grid;place-items:center;font-weight:700;font-size:15px;color:#000}
+    .hdr h1{font-size:1rem;font-weight:600} .hdr h1 b{color:var(--gold)}
+    .hdr-actions{margin-left:auto;display:flex;gap:10px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;font-size:.78rem;font-weight:600;border:none;border-radius:7px;cursor:pointer;transition:.2s;font-family:var(--font);text-decoration:none}
+    .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000}
+    .btn-gold:hover{box-shadow:0 0 20px var(--gold-glow)}
+    .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
+    .btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+
+    /* ── Layout ── */
+    .container{max-width:1400px;margin:0 auto;padding:20px 24px}
+
+    /* ── Stats Cards ── */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+    .stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r) var(--r) 0 0}
+    .stat-card.gold::before{background:var(--gold)} .stat-card.green::before{background:var(--green)}
+    .stat-card.red::before{background:var(--red)} .stat-card.blue::before{background:var(--blue)}
+    .stat-card.purple::before{background:var(--purple)}
+    .stat-card .label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:600;margin-bottom:6px}
+    .stat-card .value{font-size:1.8rem;font-weight:700;font-family:var(--mono)}
+    .stat-card .sub{font-size:.65rem;color:var(--text3);margin-top:4px;font-family:var(--mono)}
+
+    /* ── Sections ── */
+    .section{margin-bottom:24px}
+    .section-title{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title span{background:var(--bg3);padding:2px 8px;border-radius:99px;font-size:.65rem;color:var(--gold)}
+
+    /* ── Tables ── */
+    .table-wrap{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+    table{width:100%;border-collapse:collapse}
+    th{background:var(--bg2);padding:10px 14px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)}
+    td{padding:10px 14px;font-size:.78rem;border-bottom:1px solid var(--border);font-family:var(--mono)}
+    tr:last-child td{border-bottom:none}
+    tr:hover{background:var(--bg2)}
+
+    /* ── Status badges ── */
+    .badge{display:inline-block;font-size:.6rem;padding:3px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    .badge-success{background:rgba(14,203,129,.12);color:var(--green)}
+    .badge-warning{background:rgba(240,185,11,.12);color:var(--gold)}
+    .badge-danger{background:rgba(246,70,93,.12);color:var(--red)}
+    .badge-info{background:rgba(30,144,255,.12);color:var(--blue)}
+    .badge-purple{background:rgba(167,139,250,.12);color:var(--purple)}
+
+    /* ── Audit Log ── */
+    .audit-list{max-height:400px;overflow-y:auto;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:8px}
+    .audit-list::-webkit-scrollbar{width:4px} .audit-list::-webkit-scrollbar-thumb{background:var(--text3);border-radius:4px}
+    .audit-item{padding:6px 10px;border-radius:6px;font-size:.68rem;font-family:var(--mono);margin-bottom:3px;background:var(--bg2);border-left:3px solid var(--text3);color:var(--text2);line-height:1.5;word-break:break-all}
+    .audit-item.err{border-left-color:var(--red);color:var(--red)}
+    .audit-item.ok{border-left-color:var(--green)}
+    .audit-item.warn{border-left-color:var(--gold)}
+
+    /* ── Tabs ── */
+    .tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--bg1);border-radius:8px;padding:3px;border:1px solid var(--border)}
+    .tab{padding:8px 16px;font-size:.72rem;font-weight:600;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px;transition:.2s;font-family:var(--font)}
+    .tab:hover{color:var(--text)}
+    .tab.active{background:var(--bg3);color:var(--gold)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+    /* ── Fraud alerts ── */
+    .fraud-alert{background:rgba(246,70,93,.06);border:1px solid rgba(246,70,93,.15);border-radius:var(--r);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+    .fraud-alert .icon{font-size:1.2rem}
+    .fraud-alert .info{flex:1}
+    .fraud-alert .info .title{font-size:.78rem;font-weight:600;color:var(--red)}
+    .fraud-alert .info .detail{font-size:.65rem;color:var(--text3);font-family:var(--mono);margin-top:2px}
+
+    @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+    .animated{animation:fadeIn .3s ease}
+
+    /* ── Loading ── */
+    .loading{text-align:center;padding:40px;color:var(--text3);font-size:.82rem}
+    .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:10px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">B</div>
+  <h1><b>P2P</b> Admin Dashboard</h1>
+  <div class="hdr-actions">
+    <a href="/" class="btn btn-outline">← Chat Dashboard</a>
+    <button class="btn btn-gold" id="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card gold"><div class="label">Total Orders</div><div class="value" id="s-total">—</div></div>
+    <div class="stat-card blue"><div class="label">Active Orders</div><div class="value" id="s-active">—</div></div>
+    <div class="stat-card green"><div class="label">Payments Today</div><div class="value" id="s-payments">—</div><div class="sub" id="s-volume"></div></div>
+    <div class="stat-card purple"><div class="label">PAN Verifications</div><div class="value" id="s-pan">—</div></div>
+    <div class="stat-card red"><div class="label">Fraud Alerts</div><div class="value" id="s-fraud">—</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="orders">Orders</button>
+    <button class="tab" data-tab="sessions">Active Sessions</button>
+    <button class="tab" data-tab="payments">Payments</button>
+    <button class="tab" data-tab="fraud">Fraud Alerts</button>
+    <button class="tab" data-tab="audit">Audit Log</button>
+    <button class="tab" data-tab="system">System</button>
+  </div>
+
+  <!-- Orders Tab -->
+  <div class="tab-content active" id="tab-orders">
+    <div class="section">
+      <div class="section-title">Order Status Distribution</div>
+      <div class="stats-grid" id="order-status-grid"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Recent Orders <span id="order-total">0</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order #</th><th>Status</th><th>PAN Attempts</th><th>Name Match</th><th>Amount</th><th>Updated</th></tr></thead>
+          <tbody id="orders-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Sessions Tab -->
+  <div class="tab-content" id="tab-sessions">
+    <div class="section">
+      <div class="section-title">Live Bot Sessions <span id="session-count">0</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order #</th><th>Bot State</th><th>PAN Name</th><th>Beneficiary</th><th>Score</th><th>Age</th></tr></thead>
+          <tbody id="sessions-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payments Tab -->
+  <div class="tab-content" id="tab-payments">
+    <div class="section">
+      <div class="section-title">Payment Records</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>TX ID</th><th>Order #</th><th>Status</th><th>Amount</th><th>Method</th><th>Beneficiary</th><th>Date</th></tr></thead>
+          <tbody id="payments-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fraud Tab -->
+  <div class="tab-content" id="tab-fraud">
+    <div class="section">
+      <div class="section-title">Fraud Alerts & Suspicious Activity</div>
+      <div id="fraud-list"></div>
+    </div>
+  </div>
+
+  <!-- Audit Tab -->
+  <div class="tab-content" id="tab-audit">
+    <div class="section">
+      <div class="section-title">Audit Trail <span id="audit-count">0</span></div>
+      <div class="audit-list" id="audit-list"></div>
+    </div>
+  </div>
+
+  <!-- System Tab -->
+  <div class="tab-content" id="tab-system">
+    <div class="section">
+      <div class="section-title">System Health</div>
+      <div class="stats-grid" id="system-stats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── Tab switching ──
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  const statusBadge = (status) => {
+    const map = {
+      'CREATED': 'badge-info', 'WAITING_FOR_PAN': 'badge-warning',
+      'PAN_VALIDATING': 'badge-info', 'PAN_VERIFIED': 'badge-success',
+      'FETCHING_BENEFICIARY': 'badge-info', 'NAME_MATCHING': 'badge-info',
+      'NAME_MATCHED': 'badge-success', 'CHECKING_BALANCE': 'badge-purple',
+      'PAYMENT_PROCESSING': 'badge-purple', 'PAYMENT_SUCCESS': 'badge-success',
+      'PAYMENT_FAILED': 'badge-danger', 'COMPLETED': 'badge-success',
+      'REJECTED': 'badge-danger', 'EXPIRED': 'badge-danger',
+      'success': 'badge-success', 'failed': 'badge-danger',
+      'processing': 'badge-warning', 'pending': 'badge-info',
+      'verified': 'badge-success',
+    };
+    return `<span class="badge ${map[status] || 'badge-info'}">${status || '—'}</span>`;
+  };
+
+  const shortDate = (d) => d ? new Date(d).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  const age = (d) => {
+    if (!d) return '—';
+    const mins = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+    return mins < 60 ? `${mins}m` : `${Math.round(mins/60)}h ${mins%60}m`;
+  };
+
+  async function loadDashboard() {
+    try {
+      const res = await fetch('/api/admin/dashboard');
+      const json = await res.json();
+      if (!json.success || !json.data) return;
+      const d = json.data;
+
+      // Overview stats
+      document.getElementById('s-total').textContent = d.overview.totalOrders;
+      document.getElementById('s-active').textContent = d.overview.activeOrders;
+      document.getElementById('s-fraud').textContent = d.fraudAlerts?.length || 0;
+
+      // Order status distribution
+      const grid = document.getElementById('order-status-grid');
+      grid.innerHTML = '';
+      (d.orderStats || []).forEach(s => {
+        const cls = ['COMPLETED','PAYMENT_SUCCESS','NAME_MATCHED','PAN_VERIFIED'].includes(s.status) ? 'green' :
+                    ['REJECTED','PAYMENT_FAILED','EXPIRED'].includes(s.status) ? 'red' :
+                    ['PAYMENT_PROCESSING','CHECKING_BALANCE'].includes(s.status) ? 'purple' : 'gold';
+        grid.innerHTML += `<div class="stat-card ${cls} animated"><div class="label">${s.status}</div><div class="value">${s.count}</div></div>`;
+      });
+
+      // Orders table
+      const ot = document.getElementById('orders-table');
+      ot.innerHTML = '';
+      // Fetch orders separately for the full list
+      const ordersRes = await fetch('/api/admin/orders?limit=50');
+      const ordersJson = await ordersRes.json();
+      if (ordersJson.success && ordersJson.data) {
+        document.getElementById('order-total').textContent = ordersJson.data.total;
+        (ordersJson.data.orders || []).forEach(o => {
+          ot.innerHTML += `<tr class="animated">
+            <td>${(o.order_no || '').slice(-10)}</td>
+            <td>${statusBadge(o.status)}</td>
+            <td>${o.pan_attempts || 0}</td>
+            <td>${o.name_match_score ? (o.name_match_score * 100).toFixed(0) + '%' : '—'}</td>
+            <td>${o.amount || '—'}</td>
+            <td>${shortDate(o.updated_at)}</td>
+          </tr>`;
+        });
+      }
+
+      // Sessions
+      const st = document.getElementById('sessions-table');
+      st.innerHTML = '';
+      document.getElementById('session-count').textContent = (d.activeSessions || []).length;
+      (d.activeSessions || []).forEach(s => {
+        st.innerHTML += `<tr class="animated">
+          <td>${(s.orderNo || '').slice(-10)}</td>
+          <td>${statusBadge(s.status)}</td>
+          <td>${s.verifiedPanName || '—'}</td>
+          <td>${s.beneficiaryName || '—'}</td>
+          <td>${s.nameMatchScore ? (s.nameMatchScore * 100).toFixed(0) + '%' : '—'}</td>
+          <td>${age(s.createdAt)}</td>
+        </tr>`;
+      });
+
+      // Fraud alerts
+      const fl = document.getElementById('fraud-list');
+      fl.innerHTML = '';
+      (d.fraudAlerts || []).forEach(f => {
+        fl.innerHTML += `<div class="fraud-alert animated">
+          <div class="icon">⚠️</div>
+          <div class="info">
+            <div class="title">High PAN Attempts: ${f.pan_attempts}</div>
+            <div class="detail">Order: ${f.order_no} · Status: ${f.status} · ${shortDate(f.updated_at)}</div>
+          </div>
+        </div>`;
+      });
+      if (!d.fraudAlerts?.length) {
+        fl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">No fraud alerts</div>';
+      }
+
+      // Audit log
+      const al = document.getElementById('audit-list');
+      al.innerHTML = '';
+      document.getElementById('audit-count').textContent = (d.recentEvents || []).length;
+      (d.recentEvents || []).forEach(e => {
+        const cls = e.event.includes('ERROR') || e.event.includes('FAIL') ? 'err' :
+                    e.event.includes('SUCCESS') || e.event.includes('VERIFIED') || e.event.includes('MATCHED') ? 'ok' :
+                    e.event.includes('ALERT') || e.event.includes('MISMATCH') ? 'warn' : '';
+        al.innerHTML += `<div class="audit-item ${cls}">[${shortDate(e.created_at)}] <b>${e.event}</b> ${e.order_no ? '#' + e.order_no.slice(-6) : ''} ${e.data ? '· ' + e.data.slice(0, 80) : ''}</div>`;
+      });
+
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    }
+  }
+
+  async function loadPayments() {
+    try {
+      const res = await fetch('/api/admin/payments?limit=50');
+      const json = await res.json();
+      if (!json.success || !json.data) return;
+
+      const pt = document.getElementById('payments-table');
+      pt.innerHTML = '';
+      (json.data || []).forEach(p => {
+        pt.innerHTML += `<tr class="animated">
+          <td>${(p.transaction_id || '').slice(-12)}</td>
+          <td>${(p.order_no || '').slice(-10)}</td>
+          <td>${statusBadge(p.payment_status)}</td>
+          <td>₹${p.amount || '—'}</td>
+          <td>${p.payment_method || '—'}</td>
+          <td>${p.beneficiary_name || '—'}</td>
+          <td>${shortDate(p.created_at)}</td>
+        </tr>`;
+      });
+
+      // Update payments stat
+      const todayCount = (json.payments || []).filter(p => {
+        const d = new Date(p.created_at);
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
+      }).length;
+      document.getElementById('s-payments').textContent = todayCount;
+    } catch (err) {
+      console.error('Payments load error:', err);
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const res = await fetch('/api/admin/stats');
+      const json = await res.json();
+      if (!json.success || !json.data) return;
+      const s = json.data;
+
+      document.getElementById('s-pan').textContent = s.today.panVerifications;
+      document.getElementById('s-volume').textContent = s.today.paymentVolume ? `₹${s.today.paymentVolume.toLocaleString()}` : '';
+
+      const ss = document.getElementById('system-stats');
+      ss.innerHTML = `
+        <div class="stat-card green animated"><div class="label">Uptime</div><div class="value">${Math.round(s.uptime / 3600)}h</div><div class="sub">${Math.round(s.uptime)}s</div></div>
+        <div class="stat-card blue animated"><div class="label">Memory (RSS)</div><div class="value">${Math.round(s.memoryUsage.rss / 1048576)}MB</div></div>
+        <div class="stat-card gold animated"><div class="label">Heap Used</div><div class="value">${Math.round(s.memoryUsage.heapUsed / 1048576)}MB</div><div class="sub">of ${Math.round(s.memoryUsage.heapTotal / 1048576)}MB</div></div>
+        <div class="stat-card purple animated"><div class="label">Avg PAN Retries</div><div class="value">${s.retries.avgAttempts}</div><div class="sub">Max: ${s.retries.maxAttempts}</div></div>
+        <div class="stat-card gold animated"><div class="label">Today Orders</div><div class="value">${s.today.orders}</div></div>
+      `;
+    } catch (err) {
+      console.error('Stats load error:', err);
+    }
+  }
+
+  window.loadAll = async function() {
+    await Promise.all([loadDashboard(), loadPayments(), loadStats()]);
+  };
+
+  // Initial load
+  loadAll();
+
+  // Auto-refresh every 15 seconds
+  setInterval(loadAll, 15000);
+})();
+</script>
+</body>
+</html>
