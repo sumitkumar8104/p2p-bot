@@ -1,8 +1,46 @@
 const { pool } = require("../config/mysql");
-const { Parser } = require("json2csv");
+const ExcelJS = require("exceljs");
 
 /**
- * Seed sample payout data
+ * Get all payouts
+ */
+const getPayouts = async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM payouts ORDER BY created_at ASC");
+    
+    // Map data to match the image requirements
+    const formattedData = rows.map((row) => {
+      const dateObj = new Date(row.created_at);
+      const formattedDate = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear().toString().slice(-2)}`;
+      
+      return {
+        id: row.id,
+        date: formattedDate,
+        name: row.pan_name,
+        pan: row.seller_pan,
+        amount: row.total_order_amount,
+        tds_deducted: row.tds_amount,
+        tds_deposited: row.tds_amount, 
+        status: row.status,
+      };
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Payouts retrieved successfully", 
+      data: formattedData 
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false, 
+      message: err.message, 
+      data: null 
+    });
+  }
+};
+
+/**
+ * Seed sample payout data from Excel reference
  */
 const seedPayouts = async (req, res) => {
   try {
@@ -11,26 +49,13 @@ const seedPayouts = async (req, res) => {
           order_id, pan_name, seller_pan, total_order_amount, 
           tds_amount, amount, utr_number, status, created_at
       ) VALUES 
-      ('ORD9901', 'Rajesh Kumar', 'ABCDE1234F', 10000.00, 100.00, 9900.00, 'UTR772101', 'SUCCESS', '2026-05-01 10:30:00'),
-      ('ORD9902', 'Anita Sharma', 'FGHIJ5678K', 5500.00, 55.00, 5445.00, 'UTR772102', 'SUCCESS', '2026-05-02 11:15:00'),
-      ('ORD9903', 'Vikram Singh', 'KLMNO9012L', 12000.00, 120.00, 11880.00, 'UTR772103', 'SUCCESS', '2026-05-03 14:05:00'),
-      ('ORD9904', 'Suresh Raina', 'PQRST3456M', 800.00, 8.00, 792.00, 'UTR772104', 'SUCCESS', '2026-05-04 09:45:00'),
-      ('ORD9905', 'Meena Gupta', 'UVWXY7890N', 25000.00, 250.00, 24750.00, 'UTR772105', 'SUCCESS', '2026-05-05 16:20:00'),
-      ('ORD9906', 'Arjun Verma', 'ZABCD1234P', 1500.00, 15.00, 1485.00, 'UTR772106', 'SUCCESS', '2026-05-06 10:10:00'),
-      ('ORD9907', 'Priya Patel', 'EFGHI5678Q', 4200.00, 42.00, 4158.00, 'UTR772107', 'SUCCESS', '2026-05-07 13:40:00'),
-      ('ORD9908', 'Rahul Dravid', 'JKLMN9012R', 9500.00, 95.00, 9405.00, 'UTR772108', 'SUCCESS', '2026-05-08 15:55:00'),
-      ('ORD9909', 'Sonia Gandhi', 'OPQRS3456S', 18000.00, 180.00, 17820.00, 'UTR772109', 'SUCCESS', '2026-05-09 11:30:00'),
-      ('ORD9910', 'Amit Shah', 'TUVWX7890T', 3000.00, 30.00, 2970.00, 'UTR772110', 'SUCCESS', '2026-05-10 17:05:00'),
-      ('ORD9911', 'Deepak Chahar', 'ABCDE4321F', 7200.00, 72.00, 7128.00, 'UTR772111', 'SUCCESS', '2026-05-11 08:20:00'),
-      ('ORD9912', 'Kavita Iyer', 'FGHIJ8765K', 1100.00, 11.00, 1089.00, 'UTR772112', 'SUCCESS', '2026-05-12 12:45:00'),
-      ('ORD9913', 'Mohit Sharma', 'KLMNO2109L', 6600.00, 66.00, 6534.00, 'UTR772113', 'SUCCESS', '2026-05-13 14:15:00'),
-      ('ORD9914', 'Pooja Hegde', 'PQRST6543M', 20000.00, 200.00, 19800.00, 'UTR772114', 'SUCCESS', '2026-05-14 10:00:00'),
-      ('ORD9915', 'Rohan Bopanna', 'UVWXY0987N', 4500.00, 45.00, 4455.00, 'UTR772115', 'SUCCESS', '2026-05-15 11:20:00'),
-      ('ORD9916', 'Ishant Sharma', 'ZABCD4321P', 13500.00, 135.00, 13365.00, 'UTR772116', 'SUCCESS', '2026-05-16 13:50:00'),
-      ('ORD9917', 'Shikhar Dhawan', 'EFGHI8765Q', 2200.00, 22.00, 2178.00, 'UTR772117', 'SUCCESS', '2026-05-17 15:10:00'),
-      ('ORD9918', 'Hardik Pandya', 'JKLMN2109R', 31000.00, 310.00, 30690.00, 'UTR772118', 'SUCCESS', '2026-05-18 16:30:00'),
-      ('ORD9919', 'Jasprit Bumrah', 'OPQRS6543S', 1400.00, 14.00, 1386.00, 'UTR772119', 'SUCCESS', '2026-05-19 10:45:00'),
-      ('ORD9920', 'KL Rahul', 'TUVWX0987T', 8800.00, 88.00, 8712.00, 'UTR772120', 'SUCCESS', '2026-05-20 12:00:00')
+      ('P001', 'Devaraj', 'CRWPD9906K', 13200.00, 132.00, 13068.00, 'UTR001', 'SUCCESS', '2026-04-08 10:00:00'),
+      ('P002', 'Devaraj', 'CRWPD9906K', 18900.00, 189.00, 18711.00, 'UTR002', 'SUCCESS', '2026-04-09 11:00:00'),
+      ('P003', 'Devaraj', 'CRWPD9906K', 10000.00, 100.00, 9900.00, 'UTR003', 'SUCCESS', '2026-04-10 12:00:00'),
+      ('P004', 'SELVARAJ', 'OCZPS8129H', 551994.48, 5519.94, 546474.54, 'UTR004', 'SUCCESS', '2026-04-15 13:00:00'),
+      ('P005', 'Devaraj', 'CRWPD9906K', 10050.00, 100.50, 9949.50, 'UTR005', 'SUCCESS', '2026-04-16 14:00:00'),
+      ('P006', 'Vadher', 'BBRPV1431K', 22994.48, 229.94, 22764.54, 'UTR006', 'SUCCESS', '2026-04-21 15:00:00'),
+      ('P007', 'SUMIT MAHESHWARI', 'HXYPM9994P', 282094.54, 2820.95, 279273.59, 'UTR007', 'SUCCESS', '2026-04-23 16:00:00')
       ON DUPLICATE KEY UPDATE order_id=VALUES(order_id);
     `;
 
@@ -42,33 +67,73 @@ const seedPayouts = async (req, res) => {
 };
 
 /**
- * Export payouts to CSV
+ * Export payouts to Excel (.xlsx) in specific format
  */
 const exportPayouts = async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM payouts ORDER BY created_at DESC");
+    const [rows] = await pool.query("SELECT * FROM payouts ORDER BY created_at ASC");
 
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: "No data found to export", data: null });
     }
 
-    const fields = [
-      "id", "order_id", "pan_name", "seller_pan", 
-      "total_order_amount", "tds_amount", "amount", 
-      "utr_number", "status", "created_at"
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Payouts");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "SR NO", key: "sr_no", width: 10 },
+      { header: "Date", key: "date", width: 15 },
+      { header: "NAME", key: "name", width: 30 },
+      { header: "PAN", key: "pan", width: 20 },
+      { header: "AMOUNT", key: "amount", width: 20 },
+      { header: "1% TDS DEDUCTED", key: "tds_deducted", width: 20 },
+      { header: "1% TDS DEPOSITED", key: "tds_deposited", width: 20 },
     ];
+
+    // Add rows
+    rows.forEach((row, index) => {
+      const dateObj = new Date(row.created_at);
+      const formattedDate = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear().toString().slice(-2)}`;
+      
+      worksheet.addRow({
+        sr_no: index + 1,
+        date: formattedDate,
+        name: row.pan_name,
+        pan: row.seller_pan,
+        amount: parseFloat(row.total_order_amount).toFixed(2),
+        tds_deducted: parseFloat(row.tds_amount).toFixed(2),
+        tds_deposited: parseFloat(row.tds_amount).toFixed(2),
+      });
+    });
+
+    // Style headers
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
     
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(rows);
+    // Borders
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
 
-    const filename = `payouts_export_${Date.now()}.csv`;
+    const filename = `payouts_export_${Date.now()}.xlsx`;
 
-    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
-    res.status(200).send(csv);
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
+    console.error("❌ Export error:", err.message);
     res.status(500).json({ success: false, message: err.message, data: null });
   }
 };
 
-module.exports = { seedPayouts, exportPayouts };
+module.exports = { getPayouts, seedPayouts, exportPayouts };

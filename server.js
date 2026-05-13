@@ -10,12 +10,28 @@ const chatRoutes = require("./routes/chatRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const templateRoutes = require("./routes/templateRoutes");
 const payoutRoutes = require("./routes/payoutRoutes");
+const authRoutes = require("./routes/authRoutes");
+const botConfigRoutes = require("./routes/botConfigRoutes");
 const { initMysql } = require("./config/mysql");
 const { auditLog } = require("./utils/logger");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: "*" } });
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: ["http://localhost:8080", "http://localhost:3000","http://192.168.1.69:8080", "http://192.168.1.69:3000"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+app.use(cors({
+  origin: ["http://localhost:8080", "http://localhost:3000","http://192.168.1.69:8080", "http://192.168.1.69:3000"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 
 // ── Initialize Database ──
 getDb();
@@ -26,11 +42,13 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // ── Routes ──
+app.use("/api/auth", authRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/payouts", payoutRoutes);
+app.use("/api/bot-config", botConfigRoutes);
 
 // ── Socket Initialization ──
 initSocket(io);

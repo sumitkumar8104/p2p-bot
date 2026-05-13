@@ -95,6 +95,17 @@ function initSchema() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Bot Configuration table
+    CREATE TABLE IF NOT EXISTS bot_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bot_status INTEGER DEFAULT 0,
+      auto_payout INTEGER DEFAULT 0,
+      bot_name TEXT,
+      logo TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     CREATE INDEX IF NOT EXISTS idx_orders_order_no ON orders(order_no);
@@ -102,6 +113,7 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_no);
     CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event);
     CREATE INDEX IF NOT EXISTS idx_audit_order ON audit_log(order_no);
+    CREATE INDEX IF NOT EXISTS idx_bot_config_id ON bot_config(id);
   `);
 
   console.log("✅ Database schema initialized.");

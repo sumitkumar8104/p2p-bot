@@ -1,18 +1,19 @@
-# Message Templates CRUD API Documentation
+# P2P Bot API Documentation
 
-**Base URL**: `http://localhost:3000/api/templates`
+## 🔐 Authentication API
+**Base URL**: `http://localhost:3000/api/auth`
 
 ---
 
-### 1. Create Template
-**Endpoint**: `POST /`
-**URL**: `http://localhost:3000/api/templates`
+### 1. Admin Login
+**Endpoint**: `POST /login`
+**Description**: Authenticate admin and receive a JWT token.
 
 **Payload**:
 ```json
 {
-  "template_key": "greeting",
-  "message_text": "Hello! How can I help you today?"
+  "email": "admin@gmail.com",
+  "password": "Admin@12345"
 }
 ```
 
@@ -20,19 +21,117 @@
 ```json
 {
   "success": true,
-  "message": "Template created successfully",
+  "message": "Login successful",
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "template_key": "greeting"
+    "token": "JWT_TOKEN_HERE",
+    "user": {
+      "id": 1,
+      "email": "admin@gmail.com",
+      "role": "admin"
+    }
   }
 }
 ```
 
-**Error Response**:
+**Error Response (Multi-device prevention)**:
 ```json
 {
   "success": false,
-  "message": "Missing template_key or message_text",
+  "message": "You need to logout from other device where you are logged in",
+  "data": null
+}
+```
+
+---
+
+### 2. Admin Logout
+**Endpoint**: `POST /logout`
+**Header**: `Authorization: Bearer <token>`
+**Description**: Invalidates the current session by setting `is_login` to `false`.
+
+**Success Response**:
+```json
+{
+  "success": true,
+  "message": "Logged out successfully",
+  "data": null
+}
+```
+
+---
+
+### 3. Change Password
+**Endpoint**: `POST /change-password`
+**Header**: `Authorization: Bearer <token>`
+**Description**: Updates the authenticated user's password.
+
+**Payload**:
+```json
+{
+  "oldPassword": "Admin@12345",
+  "newPassword": "NewSecurePassword@2026"
+}
+```
+
+**Success Response**:
+```json
+{
+  "success": true,
+  "message": "Password updated successfully",
+  "data": null
+}
+```
+
+---
+
+## 📝 Message Templates API (Requires Auth)
+**Base URL**: `http://localhost:3000/api/templates`
+**Header**: `Authorization: Bearer <token>`
+
+---
+
+### 1. Create Template / Add Messages (Bulk)
+**Endpoint**: `POST /`
+**Description**: Creates a template group if it doesn't exist, and adds multiple messages to it in one request.
+**Validation**: Duplicate `step_order` for the same `template_key` is NOT allowed.
+
+**Payload**:
+```json
+{
+  "template_key": "kyc_flow",
+  "messages": [
+    { 
+      "message_text": "Please provide your PAN number.", 
+      "step_order": 1 
+    },
+    { 
+      "message_text": "Now verifying your PAN details...", 
+      "step_order": 2 
+    }
+  ]
+}
+```
+
+**Success Response**:
+```json
+{
+  "success": true,
+  "message": "Template messages added successfully",
+  "data": {
+    "template_key": "kyc_flow",
+    "addedMessages": [
+      { "id": 1, "step_order": 1 },
+      { "id": 2, "step_order": 2 }
+    ]
+  }
+}
+```
+
+**Error Response (Duplicate Step)**:
+```json
+{
+  "success": false,
+  "message": "Step order 1 is already created for this template key",
   "data": null
 }
 ```
@@ -41,9 +140,7 @@
 
 ### 2. Get All Templates
 **Endpoint**: `GET /`
-**URL**: `http://localhost:3000/api/templates`
-
-**Payload**: `None`
+**Description**: Retrieves all template keys along with their associated messages.
 
 **Success Response**:
 ```json
@@ -52,68 +149,60 @@
   "message": "Templates retrieved successfully",
   "data": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "template_key": "greeting",
-      "message_text": "Hello! How can I help you today?",
-      "created_at": "2026-05-10T12:00:00.000Z",
-      "updated_at": "2026-05-10T12:00:00.000Z"
+      "id": 1,
+      "template_key": "kyc_flow",
+      "messages": [
+        { "id": 1, "message_text": "...", "step_order": 1 },
+        { "id": 2, "message_text": "...", "step_order": 2 }
+      ]
     }
   ]
 }
 ```
 
-**Error Response**:
-```json
-{
-  "success": false,
-  "message": "Database connection failed",
-  "data": null
-}
-```
-
 ---
 
-### 3. Get Template by Key
+### 3. Get Template messages by Key
 **Endpoint**: `GET /:key`
-**URL**: `http://localhost:3000/api/templates/greeting`
-
-**Payload**: `None`
+**URL Example**: `/api/templates/kyc_flow`
 
 **Success Response**:
 ```json
 {
   "success": true,
-  "message": "Template retrieved successfully",
+  "message": "Template messages retrieved successfully",
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "template_key": "greeting",
-    "message_text": "Hello! How can I help you today?",
-    "created_at": "2026-05-10T12:00:00.000Z",
-    "updated_at": "2026-05-10T12:00:00.000Z"
+    "template_key": "kyc_flow",
+    "messages": [
+      { "id": 1, "message_text": "...", "step_order": 1 },
+      { "id": 2, "message_text": "...", "step_order": 2 }
+    ]
   }
 }
 ```
 
-**Error Response**:
-```json
-{
-  "success": false,
-  "message": "Template not found",
-  "data": null
-}
-```
-
 ---
 
-### 4. Update Template
-**Endpoint**: `PUT /:id`
-**URL**: `http://localhost:3000/api/templates/550e8400-e29b-41d4-a716-446655440000`
+### 4. Update Template Messages (Bulk/Reorder)
+**Endpoint**: `PUT /`
+**Description**: Updates multiple messages within a template group at once. Ideal for reordering steps or batch editing text.
 
 **Payload**:
 ```json
 {
-  "template_key": "greeting_updated",
-  "message_text": "Welcome! I am your automated assistant."
+  "template_key": "kyc_flow",
+  "messages": [
+    { 
+      "id": 1, 
+      "message_text": "Please provide your PAN number.", 
+      "step_order": 1 
+    },
+    { 
+      "id": 2, 
+      "message_text": "Thank you. Now verifying...", 
+      "step_order": 2 
+    }
+  ]
 }
 ```
 
@@ -121,74 +210,84 @@
 ```json
 {
   "success": true,
-  "message": "Template updated successfully",
-  "data": null
-}
-```
-
-**Error Response**:
-```json
-{
-  "success": false,
-  "message": "Template not found",
+  "message": "Template messages updated successfully",
   "data": null
 }
 ```
 
 ---
 
-### 5. Delete Template
+### 5. Delete Template Message
 **Endpoint**: `DELETE /:id`
-**URL**: `http://localhost:3000/api/templates/550e8400-e29b-41d4-a716-446655440000`
-
-**Payload**: `None`
-
-**Success Response**:
-```json
-{
-  "success": true,
-  "message": "Template deleted successfully",
-  "data": null
-}
-```
-
-**Error Response**:
-```json
-{
-  "success": false,
-  "message": "Template not found",
-  "data": null
-}
-```
+**Description**: Deletes a specific message from a template.
 
 ---
 
-# Payouts API Documentation
+### 6. Delete Template Group
+**Endpoint**: `DELETE /group/:id`
+**Description**: Deletes an entire template key and all its associated messages.
 
+---
+
+## 💰 Payouts API (Requires Auth)
 **Base URL**: `http://localhost:3000/api/payouts`
+**Header**: `Authorization: Bearer <token>`
 
 ---
 
-### 1. Seed Payout Data
-**Endpoint**: `POST /seed`
-**Description**: Populates the `payouts` table with sample data for testing.
+### 1. Get All Payouts
+**Endpoint**: `GET /`
+**Description**: Retrieves all payout records.
 
 **Success Response**:
 ```json
 {
   "success": true,
-  "message": "Payout sample data seeded successfully",
-  "data": null
+  "message": "Payouts retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "sr_no": 1,
+      "date": "8/4/26",
+      "name": "Devaraj",
+      "pan": "CRWPD9906K",
+      "amount": 13200.00,
+      "tds_deducted": 132.00,
+      "tds_deposited": 132.00,
+      "utr_number": "UTR001",
+      "status": "SUCCESS",
+      "created_at": "2026-04-08T10:00:00.000Z"
+    }
+  ]
 }
 ```
 
 ---
 
-### 2. Export Payouts to CSV
+### 2. Seed Payout Data
+**Endpoint**: `POST /seed`
+**Description**: Populates the database with sample data matching the reference Excel file.
+
+---
+
+### 3. Export Payouts to Excel
 **Endpoint**: `GET /export`
-**Description**: Fetches all payout records and downloads them as a CSV file.
+**Description**: Fetches all payout records and downloads them as a styled `.xlsx` Excel file.
+**Columns**: `SR NO`, `Date`, `NAME`, `PAN`, `AMOUNT`, `1% TDS DEDUCTED`, `1% TDS DEPOSITED`.
 
 **Success Response**:
-*File Download: payouts_export_1715340000.csv*
+*File Download: payouts_export_1715340000.xlsx*
+
+---
+
+## 📊 Admin Dashboard API (Requires Auth)
+**Base URL**: `http://localhost:3000/api/admin`
+**Header**: `Authorization: Bearer <token>`
+
+---
+
+## 🤖 Bot Configuration API (Requires Auth)
+**Base URL**: `http://localhost:3000/api/bot-config`
+**Header**: `Authorization: Bearer <token>`
 
 ---
